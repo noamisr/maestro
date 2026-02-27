@@ -35,13 +35,52 @@
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use jack::{Client, ClientOptions, Control, MidiOut, Port, ProcessHandler, ProcessScope, RawMidi};
 use tauri::{AppHandle, Emitter};
 
-use crate::engine::{EngineAdapter, StateManager};
+use crate::engine::{EngineAdapter, ParamDef, StateManager};
+
+// ── Custom-param config (zrythm-map.toml) ─────────────────────────────────
+
+/// One entry from the `[[params]]` table in `zrythm-map.toml`.
+#[derive(Debug, serde::Deserialize)]
+struct ZrythmParamConfig {
+    id: String,
+    label: String,
+    /// MIDI CC number (0–127).
+    cc: u8,
+    /// MIDI channel (0–15).
+    channel: u8,
+    #[serde(default = "default_zero")]
+    min: f32,
+    #[serde(default = "default_one")]
+    max: f32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ZrythmMapFile {
+    #[serde(default)]
+    params: Vec<ZrythmParamConfig>,
+}
+
+fn default_zero() -> f32 { 0.0 }
+fn default_one() -> f32 { 1.0 }
+
+fn zrythm_map_path() -> PathBuf {
+    if let Ok(p) = std::env::var("MAESTRO_MIDI_MAP") {
+        return PathBuf::from(p);
+    }
+    let base = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config")
+        });
+    base.join("maestro").join("zrythm-map.toml")
+}
 
 // ── MIDI CC assignments ────────────────────────────────────────────────────
 
@@ -117,12 +156,42 @@ struct ZrythmHandle {
 
 pub struct ZrythmEngine {
     handle: Mutex<Option<ZrythmHandle>>,
+    /// Custom params loaded from `~/.config/maestro/zrythm-map.toml` at startup.
+    params: Vec<ZrythmParamConfig>,
 }
 
 impl ZrythmEngine {
     pub fn new() -> Self {
         Self {
             handle: Mutex::new(None),
+            params: Self::load_params(),
+        }
+    }
+
+    fn load_params() -> Vec<ZrythmParamConfig> {
+        let path = zrythm_map_path();
+        match std::fs::read_to_string(&path) {
+            Ok(content) => match toml::from_str::<ZrythmMapFile>(&content) {
+                Ok(cfg) => {
+                    log::info!(
+                        "Zrythm: loaded {} custom param(s) from {}",
+                        cfg.params.len(),
+                        path.display()
+                    );
+                    cfg.params
+                }
+                Err(e) => {
+                    log::warn!("Zrythm: failed to parse {}: {}", path.display(), e);
+                    vec![]
+                }
+            },
+            Err(_) => {
+                log::info!(
+                    "Zrythm: no custom MIDI map at {} (optional — create to add controls)",
+                    path.display()
+                );
+                vec![]
+            }
         }
     }
 
@@ -333,5 +402,32 @@ impl EngineAdapter for ZrythmEngine {
              Drag audio files directly onto Zrythm's timeline."
                 .into(),
         )
+    }
+
+    // ── Custom params ───────────────────────────────────────────────────────
+
+    fn custom_params(&self) -> Vec<ParamDef> {
+        self.params
+            .iter()
+            .map(|p| ParamDef {
+                id: p.id.clone(),
+                label: p.label.clone(),
+                min: p.min,
+                max: p.max,
+            })
+            .collect()
+    }
+
+    fn set_custom_param(&self, id: &str, value: f32) -> Result<(), String> {
+        let param = self
+            .params
+            .iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| format!("Unknown custom param id: '{id}'"))?;
+
+        // Map value from [min, max] → MIDI [0, 127].
+        let norm = (value - param.min) / (param.max - param.min);
+        let cc_val = (norm.clamp(0.0, 1.0) * 127.0).round() as u8;
+        self.queue_midi([0xB0 | param.channel, param.cc, cc_val])
     }
 }

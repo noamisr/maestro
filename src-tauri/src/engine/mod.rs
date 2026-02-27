@@ -4,6 +4,18 @@ pub mod zrythm;
 
 pub use state::{ClipState, EngineState, StateManager, TrackState};
 
+/// A user-defined engine parameter exposed to the frontend as a labeled slider.
+///
+/// Defined in `~/.config/maestro/zrythm-map.toml` for the Zrythm engine.
+/// Other engines may return an empty list from `custom_params`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParamDef {
+    pub id: String,
+    pub label: String,
+    pub min: f32,
+    pub max: f32,
+}
+
 use tauri::AppHandle;
 
 /// Which audio engine backend to connect to.
@@ -78,4 +90,21 @@ pub trait EngineAdapter: Send + Sync {
         scene_index: i32,
         file_path: &str,
     ) -> Result<(), String>;
+
+    // ── Custom params (optional) ─────────────────────────────────────────────
+
+    /// Return the list of user-defined parameters for this engine.
+    ///
+    /// Defaults to an empty list; only the Zrythm adapter reads
+    /// `~/.config/maestro/zrythm-map.toml` and returns real entries.
+    fn custom_params(&self) -> Vec<ParamDef> {
+        vec![]
+    }
+
+    /// Drive a user-defined parameter to `value` (in the param's `[min, max]` range).
+    ///
+    /// Default implementation is a no-op so Ableton/Mock engines compile without changes.
+    fn set_custom_param(&self, _id: &str, _value: f32) -> Result<(), String> {
+        Ok(())
+    }
 }
