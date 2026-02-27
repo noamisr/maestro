@@ -1,38 +1,35 @@
+use std::sync::Arc;
 use tauri::State;
 
-use crate::osc::client::OscClient;
-use crate::osc::messages::OscMessages;
-use crate::osc::state::StateManager;
+use crate::engine::{EngineAdapter, StateManager};
 
 #[tauri::command]
-pub fn play(osc: State<'_, OscClient>) -> Result<(), String> {
-    let (addr, args) = OscMessages::play();
-    osc.send(addr, args).map_err(|e| e.to_string())
+pub fn play(engine: State<'_, Arc<dyn EngineAdapter>>) -> Result<(), String> {
+    engine.play()
 }
 
 #[tauri::command]
-pub fn stop(osc: State<'_, OscClient>) -> Result<(), String> {
-    let (addr, args) = OscMessages::stop();
-    osc.send(addr, args).map_err(|e| e.to_string())
+pub fn stop(engine: State<'_, Arc<dyn EngineAdapter>>) -> Result<(), String> {
+    engine.stop()
 }
 
 #[tauri::command]
-pub fn toggle_record(osc: State<'_, OscClient>) -> Result<(), String> {
-    let (addr, args) = OscMessages::toggle_record();
-    osc.send(addr, args).map_err(|e| e.to_string())
+pub fn toggle_record(engine: State<'_, Arc<dyn EngineAdapter>>) -> Result<(), String> {
+    engine.toggle_record()
 }
 
 #[tauri::command]
-pub fn set_tempo(osc: State<'_, OscClient>, bpm: f32) -> Result<(), String> {
-    let (addr, args) = OscMessages::set_tempo(bpm);
-    osc.send(addr, args).map_err(|e| e.to_string())
+pub fn set_tempo(engine: State<'_, Arc<dyn EngineAdapter>>, bpm: f32) -> Result<(), String> {
+    engine.set_tempo(bpm)
 }
 
 #[tauri::command]
-pub fn toggle_loop(osc: State<'_, OscClient>, state: State<'_, StateManager>) -> Result<(), String> {
+pub fn toggle_loop(
+    engine: State<'_, Arc<dyn EngineAdapter>>,
+    state: State<'_, StateManager>,
+) -> Result<(), String> {
     let current = state.get();
-    let (addr, args) = OscMessages::set_loop_enabled(!current.loop_enabled);
-    osc.send(addr, args).map_err(|e| e.to_string())
+    engine.set_loop_enabled(!current.loop_enabled)
 }
 
 #[tauri::command]

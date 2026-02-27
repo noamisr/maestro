@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
 import { listen } from "@tauri-apps/api/event";
-import type { TrackState } from "../types/ableton";
+import type { TrackState } from "../types/engine";
 
 export const tracks = writable<TrackState[]>([]);
 export const selectedTrackIndex = writable<number | null>(null);

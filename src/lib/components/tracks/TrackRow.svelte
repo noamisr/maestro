@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { TrackState } from "../../types/ableton";
+  import type { TrackState } from "../../types/engine";
   import * as api from "../../api/tracks";
 
   let { track, selected = false, onselect }: {
