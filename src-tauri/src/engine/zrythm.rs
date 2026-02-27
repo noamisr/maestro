@@ -431,3 +431,118 @@ impl EngineAdapter for ZrythmEngine {
         self.queue_midi([0xB0 | param.channel, param.cc, cc_val])
     }
 }
+
+// ── Tests ──────────────────────────────────────────────────────────────────
+//
+// These cover config parsing and the [min,max]→[0,127] mapping math.
+// They do not require JACK or Zrythm to be running.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── TOML parsing ────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_valid_params() {
+        let raw = r#"
+[[params]]
+id      = "reverb"
+label   = "Reverb Wet"
+cc      = 20
+channel = 0
+min     = 0.0
+max     = 1.0
+
+[[params]]
+id      = "gain"
+label   = "Input Gain"
+cc      = 21
+channel = 2
+"#;
+        let cfg: ZrythmMapFile = toml::from_str(raw).expect("parse failed");
+        assert_eq!(cfg.params.len(), 2);
+
+        let r = &cfg.params[0];
+        assert_eq!(r.id, "reverb");
+        assert_eq!(r.label, "Reverb Wet");
+        assert_eq!(r.cc, 20);
+        assert_eq!(r.channel, 0);
+        assert_eq!(r.min, 0.0);
+        assert_eq!(r.max, 1.0);
+
+        // gain uses defaults for min/max
+        let g = &cfg.params[1];
+        assert_eq!(g.min, 0.0); // default_zero
+        assert_eq!(g.max, 1.0); // default_one
+    }
+
+    #[test]
+    fn parse_empty_file_is_ok() {
+        let cfg: ZrythmMapFile = toml::from_str("").expect("empty file should parse");
+        assert!(cfg.params.is_empty());
+    }
+
+    #[test]
+    fn parse_file_without_params_table() {
+        let cfg: ZrythmMapFile = toml::from_str("[other]\nkey = 1")
+            .expect("file without params should parse");
+        assert!(cfg.params.is_empty());
+    }
+
+    #[test]
+    fn parse_invalid_toml_errors() {
+        assert!(toml::from_str::<ZrythmMapFile>("[[params]\n").is_err());
+    }
+
+    // ── MIDI value mapping math ─────────────────────────────────────────────
+    //
+    // The formula in set_custom_param is:
+    //   norm = (value - min) / (max - min)
+    //   cc   = round(clamp(norm, 0, 1) * 127)
+
+    fn midi_cc(min: f32, max: f32, value: f32) -> u8 {
+        let norm = (value - min) / (max - min);
+        (norm.clamp(0.0, 1.0) * 127.0).round() as u8
+    }
+
+    #[test]
+    fn mapping_unit_range() {
+        assert_eq!(midi_cc(0.0, 1.0, 0.0), 0);
+        assert_eq!(midi_cc(0.0, 1.0, 0.5), 64);
+        assert_eq!(midi_cc(0.0, 1.0, 1.0), 127);
+    }
+
+    #[test]
+    fn mapping_clamps_out_of_range() {
+        assert_eq!(midi_cc(0.0, 1.0, -1.0), 0);   // below min
+        assert_eq!(midi_cc(0.0, 1.0, 2.0), 127);   // above max
+    }
+
+    #[test]
+    fn mapping_negative_db_range() {
+        // -20..0 dB: midpoint (-10 dB) → 64
+        assert_eq!(midi_cc(-20.0, 0.0, -20.0), 0);
+        assert_eq!(midi_cc(-20.0, 0.0, -10.0), 64);
+        assert_eq!(midi_cc(-20.0, 0.0, 0.0), 127);
+    }
+
+    // ── Config path resolution ──────────────────────────────────────────────
+
+    #[test]
+    fn path_uses_env_override() {
+        std::env::set_var("MAESTRO_MIDI_MAP", "/tmp/my-map.toml");
+        let path = zrythm_map_path();
+        std::env::remove_var("MAESTRO_MIDI_MAP");
+        assert_eq!(path.to_str().unwrap(), "/tmp/my-map.toml");
+    }
+
+    #[test]
+    fn path_defaults_under_xdg_config() {
+        std::env::remove_var("MAESTRO_MIDI_MAP");
+        std::env::set_var("XDG_CONFIG_HOME", "/tmp/cfg");
+        let path = zrythm_map_path();
+        std::env::remove_var("XDG_CONFIG_HOME");
+        assert_eq!(path.to_str().unwrap(), "/tmp/cfg/maestro/zrythm-map.toml");
+    }
+}
