@@ -1,27 +1,43 @@
 mod commands;
+mod engine;
 mod osc;
 mod sidecar;
 
+use std::sync::Arc;
+
 use tauri::Manager;
 
-use osc::client::OscClient;
-use osc::state::StateManager;
+use engine::{EngineAdapter, EngineKind, StateManager};
+use osc::{adapter::AbletonOscEngine, client::OscClient};
 use sidecar::api::SidecarClient;
 
-const OSC_TARGET_PORT: u16 = 11000;
+const ABLETON_OSC_TARGET_PORT: u16 = 11000;
 const SIDECAR_PORT: u16 = 9400;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let osc_client = OscClient::new(OSC_TARGET_PORT).expect("Failed to create OSC client");
+    let engine_kind = EngineKind::from_env();
     let state_manager = StateManager::new();
     let sidecar_client = SidecarClient::new(SIDECAR_PORT);
+
+    // Build the engine adapter selected by the MAESTRO_ENGINE env var.
+    // Defaults to AbletonOsc when the variable is unset.
+    let engine: Arc<dyn EngineAdapter> = match engine_kind {
+        EngineKind::AbletonOsc => {
+            let osc_client = OscClient::new(ABLETON_OSC_TARGET_PORT)
+                .expect("Failed to create OSC client");
+            Arc::new(AbletonOscEngine::new(osc_client))
+        }
+        EngineKind::Zrythm => Arc::new(engine::zrythm::ZrythmEngine),
+        EngineKind::Mock => Arc::new(engine::mock::MockEngine),
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .setup({
             let state_manager = state_manager.clone();
+            let engine = Arc::clone(&engine);
             move |app| {
                 if cfg!(debug_assertions) {
                     app.handle().plugin(
@@ -31,37 +47,21 @@ pub fn run() {
                     )?;
                 }
 
-                // Start OSC listener (receives from AbletonOSC on port 11001)
-                osc::listener::start_listener(app.handle().clone(), state_manager.clone());
+                log::info!("Starting Maestro with engine: {}", engine.name());
 
-                // Send initial test ping to AbletonOSC
-                let osc = app.state::<OscClient>();
-                let _ = osc.send(
-                    osc::messages::OscMessages::test().0,
-                    osc::messages::OscMessages::test().1,
-                );
+                // Start the engine: launch listeners and subscribe to state updates.
+                engine.start(app.handle().clone(), state_manager.clone());
 
-                // Start polling for sidecar readiness in background
+                // Start polling for sidecar readiness in background.
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     sidecar::manager::start_sidecar(handle).await;
                 });
 
-                // Subscribe to Ableton state updates
-                let osc2 = app.state::<OscClient>();
-                let _ = osc2.send(
-                    osc::messages::OscMessages::start_listen_tempo().0,
-                    osc::messages::OscMessages::start_listen_tempo().1,
-                );
-                let _ = osc2.send(
-                    osc::messages::OscMessages::start_listen_is_playing().0,
-                    osc::messages::OscMessages::start_listen_is_playing().1,
-                );
-
                 Ok(())
             }
         })
-        .manage(osc_client)
+        .manage(engine)
         .manage(state_manager)
         .manage(sidecar_client)
         .invoke_handler(tauri::generate_handler![

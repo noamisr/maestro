@@ -1,7 +1,7 @@
+use std::sync::Arc;
 use tauri::State;
 
-use crate::osc::client::OscClient;
-use crate::osc::messages::OscMessages;
+use crate::engine::EngineAdapter;
 use crate::sidecar::api::{IndexResponse, SearchResultItem, SidecarClient};
 
 #[tauri::command]
@@ -43,11 +43,10 @@ pub async fn index_directory(
 
 #[tauri::command]
 pub fn insert_sample(
-    osc: State<'_, OscClient>,
+    engine: State<'_, Arc<dyn EngineAdapter>>,
     file_path: String,
     track_index: i32,
     scene_index: i32,
 ) -> Result<(), String> {
-    let (addr, args) = OscMessages::load_sample(track_index, scene_index, &file_path);
-    osc.send(addr, args).map_err(|e| e.to_string())
+    engine.load_sample(track_index, scene_index, &file_path)
 }

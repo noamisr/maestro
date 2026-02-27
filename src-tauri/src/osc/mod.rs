@@ -1,3 +1,4 @@
+pub mod adapter;
 pub mod client;
 pub mod listener;
 pub mod messages;

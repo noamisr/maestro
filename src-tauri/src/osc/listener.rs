@@ -2,7 +2,7 @@ use rosc::{OscPacket, OscType};
 use std::net::UdpSocket;
 use tauri::{AppHandle, Emitter};
 
-use super::state::StateManager;
+use crate::engine::StateManager;
 
 pub fn start_listener(app: AppHandle, state_manager: StateManager) {
     std::thread::spawn(move || {
@@ -81,7 +81,7 @@ fn handle_message(app: &AppHandle, state: &StateManager, addr: &str, args: &[Osc
         }
         "/live/test" => {
             log::info!("AbletonOSC test response received");
-            let _ = app.emit("ableton-connection-changed", true);
+            let _ = app.emit("engine-connection-changed", true);
         }
         _ => {
             log::trace!("Unhandled OSC: {} {:?}", addr, args);

@@ -3,7 +3,7 @@
   import TransportBar from "./lib/components/transport/TransportBar.svelte";
   import TrackList from "./lib/components/tracks/TrackList.svelte";
   import StatusBar from "./lib/components/layout/StatusBar.svelte";
-  import { abletonConnected, sidecarConnected } from "./lib/stores/connection";
+  import { engineConnected, sidecarConnected } from "./lib/stores/connection";
 </script>
 
 <div class="app-shell">
@@ -15,8 +15,8 @@
       <div class="placeholder">
         <p class="title">Maestro</p>
         <p class="subtitle">
-          {#if !$abletonConnected}
-            Waiting for Ableton Live connection...
+          {#if !$engineConnected}
+            Waiting for audio engine connection...
           {:else if !$sidecarConnected}
             Connecting to search engine...
           {:else}

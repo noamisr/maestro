@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { abletonConnected, sidecarConnected } from "../../stores/connection";
+  import { engineConnected, sidecarConnected } from "../../stores/connection";
 </script>
 
 <div class="status-bar">
   <div class="status-left">
     <span class="status-item">
-      <span class="dot" class:connected={$abletonConnected}></span>
-      Ableton
+      <span class="dot" class:connected={$engineConnected}></span>
+      Engine
     </span>
     <span class="status-item">
       <span class="dot" class:connected={$sidecarConnected}></span>
