@@ -28,7 +28,7 @@ pub fn run() {
                 .expect("Failed to create OSC client");
             Arc::new(AbletonOscEngine::new(osc_client))
         }
-        EngineKind::Zrythm => Arc::new(engine::zrythm::ZrythmEngine),
+        EngineKind::Zrythm => Arc::new(engine::zrythm::ZrythmEngine::new()),
         EngineKind::Mock => Arc::new(engine::mock::MockEngine),
     };
 
