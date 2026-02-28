@@ -82,6 +82,9 @@ pub fn run() {
             commands::search::search_by_similarity,
             commands::search::index_directory,
             commands::search::insert_sample,
+            // Engine params
+            commands::params::get_engine_params,
+            commands::params::set_engine_param,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Maestro");

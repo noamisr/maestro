@@ -3,6 +3,7 @@
   import TransportBar from "./lib/components/transport/TransportBar.svelte";
   import TrackList from "./lib/components/tracks/TrackList.svelte";
   import StatusBar from "./lib/components/layout/StatusBar.svelte";
+  import CustomParams from "./lib/components/engine/CustomParams.svelte";
   import { engineConnected, sidecarConnected } from "./lib/stores/connection";
 </script>
 
@@ -25,6 +26,7 @@
         </p>
       </div>
     </div>
+    <CustomParams />
   </div>
 
   <StatusBar />
