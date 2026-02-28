@@ -2,28 +2,20 @@
 
 ## Overview
 
-Maestro is a music editing interface that uses **Zrythm** as its backend audio engine, paired with a local **vector database** for fast soundtrack searching, and a **skills system** for quick operations.
+Maestro is a music editing interface that uses **Ableton Live** as its primary backend audio engine, paired with a local **vector database** for fast soundtrack searching, and a **skills system** for quick operations. A **Zrythm** backend is available as an opt-in alternative on Linux.
 
-## Why Zrythm
+## Why Ableton Live
 
-Zrythm was chosen over Ableton (proprietary, expensive) as the backend engine because:
+Ableton Live is the primary backend engine because:
 
-- **Free & open source** (AGPLv3) — no licensing costs
-- **Most Ableton-like UI** of any free DAW — modern, cohesive single-window layout
-- **Built-in scripting API** via GNU Guile (Scheme/ECMAScript) — programmatic control over tracks, MIDI notes, regions, ports, channels, plugins, and undo
-- **Full DAW features** — audio recording, MIDI, LV2/VST plugins, automation
-- **Cross-platform** — Linux, macOS, Windows
-- **Active development** — C++23 / Qt / JUCE (v2 branch)
+- **Industry standard** — widely used in professional music production
+- **AbletonOSC** — open-source control surface exposing the full Live API over OSC
+- **Rich API** — transport, tracks, clips, devices, scenes, and more
+- **Cross-platform** — macOS and Windows
 
-### Alternatives Considered
+### Zrythm (opt-in alternative, Linux)
 
-| Engine | Why Not |
-|---|---|
-| Ableton Live | Proprietary, $449-$749, no scripting API |
-| LMMS | No audio recording, no external scripting API |
-| Ardour | No Ableton-like UI, Lua scripting is extension-level only |
-| Tone.js | Library only (no UI), browser-only |
-| SuperCollider | No DAW UI, steep learning curve, GPL |
+Zrythm is available as an opt-in backend via `MAESTRO_ENGINE=zrythm`. It is controlled over JACK Transport (tempo/play/stop) and JACK MIDI CC (track parameters). See the README for setup instructions.
 
 ## Architecture
 

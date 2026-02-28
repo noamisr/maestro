@@ -1,6 +1,6 @@
 # Maestro
 
-A lightweight, keyboard-driven music editing interface built on top of [Zrythm](https://www.zrythm.org/) (or Ableton Live), with AI-powered sample search.
+A lightweight, keyboard-driven music editing interface backed by [Ableton Live](https://www.ableton.com) via AbletonOSC, with AI-powered sample search.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -25,18 +25,18 @@ A lightweight, keyboard-driven music editing interface built on top of [Zrythm](
 | Node.js | ≥ 20 | https://nodejs.org |
 | Tauri CLI | latest | `cargo install tauri-cli` |
 
-### Zrythm engine (Linux default)
+### Ableton engine (default)
+| Dependency | Install |
+|-----------|---------|
+| Ableton Live 10+ | https://www.ableton.com |
+| AbletonOSC | https://github.com/ideoforms/AbletonOSC |
+
+### Zrythm engine (opt-in, Linux only)
 | Dependency | Install |
 |-----------|---------|
 | JACK Audio | `sudo apt install jackd2` **or** `sudo apt install pipewire-jack` |
 | Zrythm ≥ 1.0 | https://www.zrythm.org/en/download.html |
 | (optional) patchbay | `sudo apt install qjackctl` |
-
-### Ableton engine (macOS/Windows)
-| Dependency | Install |
-|-----------|---------|
-| Ableton Live 10+ | https://www.ableton.com |
-| AbletonOSC | https://github.com/ideoforms/AbletonOSC |
 
 ## Installation
 
@@ -47,32 +47,42 @@ npm install
 
 ## Running
 
-Select an engine with the `MAESTRO_ENGINE` environment variable:
+`MAESTRO_ENGINE` defaults to `ableton` when unset:
 
 ```bash
-# Zrythm via JACK (Linux — requires JACK server + Zrythm)
-MAESTRO_ENGINE=zrythm npm run tauri dev
+# Ableton Live via AbletonOSC (default)
+npm run tauri dev
 
-# Ableton Live via AbletonOSC (macOS/Windows)
-MAESTRO_ENGINE=ableton npm run tauri dev
+# Zrythm via JACK (opt-in, Linux)
+MAESTRO_ENGINE=zrythm npm run tauri dev
 
 # No-op mock — offline UI development, no DAW needed
 MAESTRO_ENGINE=mock npm run tauri dev
 ```
 
-`MAESTRO_ENGINE` defaults to `ableton` when unset.
+---
+
+## Ableton setup
+
+1. Copy the `AbletonOSC` control surface to Ableton's MIDI Remote Scripts folder
+   (see [AbletonOSC README](https://github.com/ideoforms/AbletonOSC#installation)).
+2. In Ableton → **Preferences → Link/Tempo/MIDI**, enable the AbletonOSC surface.
+   It listens on port **11000** by default.
+3. Launch Maestro:
+   ```bash
+   npm run tauri dev
+   ```
 
 ---
 
-## Zrythm setup
+## Zrythm setup (opt-in)
 
 ### 1. Start a JACK server
 
 **PipeWire-JACK** (recommended on Ubuntu 22.04+):
 ```bash
 # PipeWire automatically provides a JACK server — nothing extra needed.
-# Verify it is running:
-jack_lsp
+jack_lsp   # verify it is running
 ```
 
 **Classic jackd**:
@@ -89,15 +99,13 @@ MAESTRO_ENGINE=zrythm npm run tauri dev
 
 ### 3. Connect MIDI ports
 
-In your JACK patchbay (`qjackctl`, Carla, Catia, or command line):
-
 ```bash
 jack_connect maestro:control_out Zrythm:MIDI_Input
 ```
 
-Or open `qjackctl → Graph` and drag a cable from `maestro:control_out` to `Zrythm:MIDI_Input`.
+Or use `qjackctl → Graph` to drag a cable from `maestro:control_out` to `Zrythm:MIDI_Input`.
 
-### 4. MIDI-learn track parameters in Zrythm
+### 4. MIDI-learn track parameters
 
 In Zrythm, right-click any fader, pan knob, or button → **"MIDI Learn"**, then move the corresponding control in Maestro to bind it.
 
@@ -110,9 +118,7 @@ Default CC assignments:
 | Mute      | 119 | track index  |
 | Solo      | 118 | track index  |
 
----
-
-## Custom MIDI controls
+### Custom MIDI controls (Zrythm only)
 
 Expose any Zrythm parameter as a labeled slider in the **Controls** panel by
 creating `~/.config/maestro/zrythm-map.toml`:
@@ -125,33 +131,9 @@ cc      = 20        # CC number you MIDI-learned in Zrythm
 channel = 0
 min     = 0.0       # optional — slider minimum (default 0)
 max     = 1.0       # optional — slider maximum (default 1)
-
-[[params]]
-id      = "limiter_threshold"
-label   = "Limiter Threshold"
-cc      = 21
-channel = 0
-min     = -20.0
-max     = 0.0
 ```
 
-Each slider maps its `[min, max]` range to MIDI CC values `[0, 127]`.
-To use a different file, set `MAESTRO_MIDI_MAP=/path/to/map.toml`.
-
-Sliders appear automatically after the next launch — no code changes needed.
-
----
-
-## Ableton setup
-
-1. Copy the `AbletonOSC` control surface to Ableton's MIDI Remote Scripts folder
-   (see [AbletonOSC README](https://github.com/ideoforms/AbletonOSC#installation)).
-2. In Ableton → **Preferences → Link/Tempo/MIDI**, enable the AbletonOSC surface.
-   It listens on port **11000** by default.
-3. Run:
-   ```bash
-   MAESTRO_ENGINE=ableton npm run tauri dev
-   ```
+Set `MAESTRO_MIDI_MAP=/path/to/map.toml` to use a different file path.
 
 ---
 
@@ -164,7 +146,7 @@ npm install
 # Type-check frontend
 npm run check
 
-# Unit tests (no JACK/Zrythm/GUI needed)
+# Unit tests (no DAW or GUI needed)
 cd src-tauri && cargo test
 
 # Lint
@@ -174,25 +156,18 @@ cd src-tauri && cargo clippy
 npm run tauri build
 ```
 
-### End-to-end test (requires JACK + Zrythm)
+### End-to-end test (Zrythm, requires JACK)
 
 ```bash
 ./scripts/e2e-zrythm.sh
 ```
-
-The script verifies:
-1. JACK server is reachable
-2. `maestro:control_out` JACK MIDI port registers on startup
-3. TOML param config is parsed correctly
-4. MIDI CC values are emitted on the port
-5. JACK transport state is queryable (Zrythm play/stop)
 
 ---
 
 ## Architecture
 
 ```
-MAESTRO_ENGINE env var
+MAESTRO_ENGINE env var (default: ableton)
         │
         ▼
 ┌───────────────────┐     IPC / events      ┌────────────────────────┐
@@ -203,23 +178,23 @@ MAESTRO_ENGINE env var
                          ┌────────────────────────────┼──────────────────┐
                          │                            │                  │
                          ▼                            ▼                  ▼
-               ┌─────────────────┐        ┌──────────────────┐  ┌──────────────┐
-               │  ZrythmEngine   │        │  AbletonOscEngine│  │  MockEngine  │
-               │                 │        │                  │  │              │
-               │ JACK Transport  │        │  OSC (port 11000)│  │  no-op       │
-               │ JACK MIDI CC    │        │                  │  │              │
-               └────────┬────────┘        └──────────────────┘  └──────────────┘
-                        │
-               ┌────────┴────────┐
-               │  Zrythm (DAW)   │
-               │  JACK MIDI In   │
-               └─────────────────┘
+               ┌──────────────────┐      ┌─────────────────┐  ┌──────────────┐
+               │ AbletonOscEngine │      │  ZrythmEngine   │  │  MockEngine  │
+               │  (default)       │      │  (opt-in)       │  │  (testing)   │
+               │                  │      │                  │  │              │
+               │ OSC port 11000   │      │ JACK Transport  │  │  no-op       │
+               └────────┬─────────┘      │ JACK MIDI CC    │  └──────────────┘
+                        │                └────────┬────────┘
+               ┌────────┴─────────┐      ┌────────┴────────┐
+               │   Ableton Live   │      │  Zrythm (DAW)   │
+               │   AbletonOSC     │      │  JACK MIDI In   │
+               └──────────────────┘      └─────────────────┘
 ```
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Svelte 5, TypeScript, Tauri IPC |
 | Backend | Rust, Tauri 2, `async-trait` |
+| Ableton bridge | `rosc` crate — AbletonOSC (default) |
 | Zrythm bridge | `jack` crate — JACK Transport + JACK MIDI CC |
-| Ableton bridge | `rosc` crate — AbletonOSC |
 | Sample search | HTTP sidecar — vector DB (Qdrant/Milvus) |
